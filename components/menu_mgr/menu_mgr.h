@@ -14,6 +14,9 @@ typedef enum TabID {
     kTabID_Palette,
     kTabID_ColorTemp,
     kTabID_System,
+    kTabID_WiFi,
+    kTabID_BT,
+    kTabID_PCAP,
     kNumTabIDs,
 
     kTabID_First = 0,

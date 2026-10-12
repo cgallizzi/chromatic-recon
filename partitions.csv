@@ -1,0 +1,12 @@
+# CONFIRMED against the real device (backup dump): the STOCK table is
+#   nvs      0x9000  0x6000   (24 KB)
+#   phy_init 0xf000  0x1000   (4 KB)
+#   factory  0x10000 0x100000 (1 MB app)  <-- too small once esp_wifi is added
+# Only ~1.06 MB of the 4 MB flash is allocated, so we grow the app to 3 MB.
+# nvs/phy offsets are kept identical to stock so saved settings survive.
+# Enable via CONFIG_PARTITION_TABLE_CUSTOM. Keep the stock backup to restore.
+#
+# Name,     Type, SubType,  Offset,   Size
+nvs,        data, nvs,      0x9000,   0x6000
+phy_init,   data, phy,      0xf000,   0x1000
+factory,    app,  factory,  0x10000,  0x300000

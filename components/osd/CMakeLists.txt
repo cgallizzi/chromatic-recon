@@ -18,6 +18,9 @@ idf_component_register(SRCS
                         "system/silent.c"
                         "system/serial_num.c"
                         "system/player_num.c"
+                        "wifi/wifi_tools.c"
+                        "bt/bt_tools.c"
+                        "pcap/pcap_tools.c"
                     INCLUDE_DIRS
                         "."
                         "controls/"
@@ -25,5 +28,8 @@ idf_component_register(SRCS
                         "palette/"
                         "display/"
                         "system/"
-                    REQUIRES battery common dlist menu_mgr
+                        "wifi/"
+                        "bt/"
+                        "pcap/"
+                    REQUIRES battery common dlist menu_mgr netscan fonts blescan pcap
                     PRIV_REQUIRES esp_app_format settings console efuse)

@@ -10,6 +10,7 @@
 #include "esp_timer.h"
 #include "esp_vfs.h"
 #include "esp_vfs_fat.h"
+#include "esp_heap_caps.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
 #include "freertos/task.h"
@@ -109,7 +110,9 @@ static void lvglTimerTask(void* param)
     }
 }
 
-static DMA_ATTR lv_color_t buffy[160*144];
+/* Heap-allocated (DMA-capable) so this 46 KB framebuffer stays out of the
+ * static .dram0.bss region, which otherwise overflows once BT/BLE is enabled. */
+static lv_color_t *buffy = NULL;
 
 static void send_lines(spi_device_handle_t spi, int ypos, uint16_t *linedata)
 {
@@ -233,6 +236,9 @@ void app_main(void)
     persist_storage_init();
     Mutex_Init();
 
+    buffy = heap_caps_malloc(sizeof(lv_color_t) * 160 * 144, MALLOC_CAP_DMA | MALLOC_CAP_8BIT);
+    assert(buffy);
+
     // Set up the system management UART to/from the FPGA
     ESP_LOGI(TAG, "Initialize FPGA UART");
     const uart_config_t uart_config = {
@@ -302,7 +308,7 @@ void app_main(void)
     lv_init();
     // alloc draw buffers used by LVGL
     // it's recommended to choose the size of the draw buffer(s) to be at least 1/10 screen sized
-    lv_color_t *buf1 = (lv_color_t*)&buffy;
+    lv_color_t *buf1 = buffy;
     assert(buf1);
     lv_disp_draw_buf_init(&disp_buf, buf1, NULL, kOSD_NumPixels);
 

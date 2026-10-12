@@ -1,3 +1,7 @@
 managed_components/
 build/
 sdkconfig
+
+*.log
+*.bin
+*.pcap

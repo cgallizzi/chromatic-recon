@@ -22,6 +22,83 @@ const lv_point_t _MenuOrigin_px = {
 
 static MenuMgrCtx_t _Ctx;
 static const char* TAG = "MenuMgr";
+
+/* ---- dynamic tab strip (replaces the per-tab baked strip art) ---- */
+static bool MenuMgr_IsTabActive(TabID_t eID);
+LV_FONT_DECLARE(lv_font_montserrat_14);
+
+static const char *kTabGlyph[kNumTabIDs] = {
+    [kTabID_Status]    = LV_SYMBOL_HOME,
+    [kTabID_Display]   = LV_SYMBOL_IMAGE,
+    [kTabID_Controls]  = LV_SYMBOL_LIST,
+    [kTabID_Palette]   = LV_SYMBOL_TINT,
+    [kTabID_ColorTemp] = LV_SYMBOL_TINT,
+    [kTabID_System]    = LV_SYMBOL_SETTINGS,
+    [kTabID_WiFi]      = LV_SYMBOL_WIFI,
+    [kTabID_BT]        = LV_SYMBOL_BLUETOOTH,
+    [kTabID_PCAP]      = LV_SYMBOL_SAVE,
+};
+
+static lv_obj_t *s_strip_bar = NULL;
+static lv_obj_t *s_strip_hl  = NULL;
+static lv_obj_t *s_strip_ic[kNumTabIDs] = { 0 };
+
+static void MenuMgr_DrawStrip(lv_obj_t *pScreen)
+{
+    if (pScreen == NULL) return;
+
+    if (s_strip_bar == NULL) {
+        s_strip_bar = lv_obj_create(pScreen);
+        lv_obj_remove_style_all(s_strip_bar);
+        lv_obj_set_size(s_strip_bar, 160, 20);
+        lv_obj_set_pos(s_strip_bar, 0, 2);
+        lv_obj_set_style_bg_color(s_strip_bar, lv_color_make(0x0A, 0x0A, 0x14), 0);
+        lv_obj_set_style_bg_opa(s_strip_bar, LV_OPA_COVER, 0);
+        lv_obj_clear_flag(s_strip_bar, LV_OBJ_FLAG_SCROLLABLE);
+    }
+    if (s_strip_hl == NULL) {
+        s_strip_hl = lv_obj_create(pScreen);
+        lv_obj_remove_style_all(s_strip_hl);
+        lv_obj_set_size(s_strip_hl, 18, 18);
+        lv_obj_set_style_bg_opa(s_strip_hl, LV_OPA_0, 0);
+        lv_obj_set_style_border_color(s_strip_hl, lv_color_make(0xFF, 0xFF, 0xFF), 0);
+        lv_obj_set_style_border_width(s_strip_hl, 1, 0);
+        lv_obj_clear_flag(s_strip_hl, LV_OBJ_FLAG_SCROLLABLE);
+    }
+
+    uint8_t nact = 0;
+    for (TabID_t t = 0; t < kNumTabIDs; t++) if (MenuMgr_IsTabActive(t)) nact++;
+    if (nact == 0) nact = 1;
+    uint8_t slotw = (uint8_t)(160 / nact);
+
+    uint8_t slot = 0;
+    for (TabID_t t = 0; t < kNumTabIDs; t++) {
+        if (s_strip_ic[t] == NULL) {
+            s_strip_ic[t] = lv_label_create(pScreen);
+            lv_obj_remove_style_all(s_strip_ic[t]);
+            lv_obj_set_style_text_font(s_strip_ic[t], &lv_font_montserrat_14, 0);
+            lv_label_set_text_static(s_strip_ic[t], kTabGlyph[t] ? kTabGlyph[t] : "?");
+        }
+        if (!MenuMgr_IsTabActive(t)) {
+            lv_obj_add_flag(s_strip_ic[t], LV_OBJ_FLAG_HIDDEN);
+            continue;
+        }
+        lv_obj_clear_flag(s_strip_ic[t], LV_OBJ_FLAG_HIDDEN);
+        int x = slot * slotw + (slotw - 12) / 2;
+        int y = 5;
+        lv_obj_set_pos(s_strip_ic[t], x, y);
+        bool cur = (t == _Ctx.eCurTab);
+        lv_obj_set_style_text_color(s_strip_ic[t],
+            cur ? lv_color_make(0xFF, 0xFF, 0xFF) : lv_color_make(0x55, 0x55, 0x66), 0);
+        if (cur) lv_obj_set_pos(s_strip_hl, x - 3, y - 2);
+        slot++;
+    }
+
+    lv_obj_move_foreground(s_strip_bar);
+    lv_obj_move_foreground(s_strip_hl);
+    for (TabID_t t = 0; t < kNumTabIDs; t++)
+        if (s_strip_ic[t]) lv_obj_move_foreground(s_strip_ic[t]);
+}
 static OSD_Result_t MenuMgr_OnButton(const Button_t Button, const ButtonState_t State, void *arg);
 static OSD_Result_t MenuMgr_Draw(void* arg);
 static OSD_Result_t MenuMgr_OnTransition(void *arg);
@@ -108,6 +185,8 @@ static OSD_Result_t MenuMgr_Draw(void* arg)
         Tab_DrawCtx_t Ctx = { pTab->Menu, pScreen, pTab->Accent };
         pTab->Widget.fnDraw(&Ctx);
     }
+
+    MenuMgr_DrawStrip(pScreen);
 
     return kOSD_Result_Ok;
 }

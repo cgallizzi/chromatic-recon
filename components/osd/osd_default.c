@@ -20,6 +20,9 @@
 #include "system/silent.h"
 #include "system/player_num.h"
 #include "system/serial_num.h"
+#include "wifi/wifi_tools.h"
+#include "bt/bt_tools.h"
+#include "pcap/pcap_tools.h"
 #include "osd.h"
 #include "osd_shared.h"
 #include "esp_log.h"
@@ -34,6 +37,7 @@ LV_IMG_DECLARE(menu_controls);
 LV_IMG_DECLARE(menu_palette);
 LV_IMG_DECLARE(menu_palette_gbc);
 LV_IMG_DECLARE(menu_system);
+LV_IMG_DECLARE(img_dot_white);
 
 static void CreateMenuStatus(lv_obj_t *const pScreen);
 static void CreateMenuDisplay(lv_obj_t *const pScreen);
@@ -41,6 +45,9 @@ static void CreateMenuControls(lv_obj_t *const pScreen);
 static void CreateMenuPalette(lv_obj_t *const pScreen);
 static void CreateMenuColorTemp(lv_obj_t *const pScreen);
 static void CreateMenuSystem(lv_obj_t *const pScreen);
+static void CreateMenuWiFi(lv_obj_t *const pScreen);
+static void CreateMenuBT(lv_obj_t *const pScreen);
+static void CreateMenuPCAP(lv_obj_t *const pScreen);
 static bool IsPaletteTabActive(void);
 static bool IsColorTempTabActive(void);
 
@@ -74,6 +81,9 @@ void OSD_Default_Init(lv_obj_t *const pScreen)
     CreateMenuPalette(pScreen);
     CreateMenuColorTemp(pScreen);
     CreateMenuSystem(pScreen);
+    CreateMenuWiFi(pScreen);
+    CreateMenuBT(pScreen);
+    CreateMenuPCAP(pScreen);
 
     OSD_AddWidget(&Battery);
     OSD_AddWidget(&MenuMgr);
@@ -517,6 +527,84 @@ static void CreateMenuSystem(lv_obj_t *const pScreen)
     if ((eResult = MenuMgr_AddTab(kTabID_System, &Tab_System)) != kOSD_Result_Ok)
     {
         ESP_LOGE(TAG, "%s widget init failed %d", Tab_System.Widget.Name, eResult);
+        return;
+    }
+}
+
+static void CreateMenuWiFi(lv_obj_t *const pScreen)
+{
+    (void)pScreen;
+    static TabCollection_t WiFiList;   /* unused by the self-drawn WiFi tab */
+    sys_dlist_init(&WiFiList.WidgetList);
+
+    static MenuTab_t Tab_WiFi = {
+        .Widget = {
+            .Name           = "MenuWiFi",
+            .fnDraw         = WifiTools_Draw,
+            .fnOnButton     = WifiTools_OnButton,
+            .fnOnTransition = WifiTools_OnTransition,
+        },
+        .pImageDesc = &img_dot_white,  /* blank slot; wifi glyph drawn by WifiTools_Draw */
+        .Menu       = &WiFiList,
+    };
+    Tab_WiFi.Accent = lv_color_make(0x00, 0xFF, 0x66);
+
+    OSD_Result_t eResult = MenuMgr_AddTab(kTabID_WiFi, &Tab_WiFi);
+    if (eResult != kOSD_Result_Ok)
+    {
+        ESP_LOGE(TAG, "%s widget init failed %d", Tab_WiFi.Widget.Name, eResult);
+        return;
+    }
+}
+
+static void CreateMenuBT(lv_obj_t *const pScreen)
+{
+    (void)pScreen;
+    static TabCollection_t BTList;
+    sys_dlist_init(&BTList.WidgetList);
+
+    static MenuTab_t Tab_BT = {
+        .Widget = {
+            .Name           = "MenuBT",
+            .fnDraw         = BtTools_Draw,
+            .fnOnButton     = BtTools_OnButton,
+            .fnOnTransition = BtTools_OnTransition,
+        },
+        .pImageDesc = &img_dot_white,  /* blank slot; BT glyph drawn by the tab */
+        .Menu       = &BTList,
+    };
+    Tab_BT.Accent = lv_color_make(0x33, 0xCC, 0xFF);
+
+    OSD_Result_t eResult = MenuMgr_AddTab(kTabID_BT, &Tab_BT);
+    if (eResult != kOSD_Result_Ok)
+    {
+        ESP_LOGE(TAG, "%s widget init failed %d", Tab_BT.Widget.Name, eResult);
+        return;
+    }
+}
+
+static void CreateMenuPCAP(lv_obj_t *const pScreen)
+{
+    (void)pScreen;
+    static TabCollection_t PcapList;
+    sys_dlist_init(&PcapList.WidgetList);
+
+    static MenuTab_t Tab_Pcap = {
+        .Widget = {
+            .Name           = "MenuPCAP",
+            .fnDraw         = PcapTools_Draw,
+            .fnOnButton     = PcapTools_OnButton,
+            .fnOnTransition = PcapTools_OnTransition,
+        },
+        .pImageDesc = &img_dot_white,  /* blank slot; strip draws the glyph */
+        .Menu       = &PcapList,
+    };
+    Tab_Pcap.Accent = lv_color_make(0xFF, 0x99, 0x33);
+
+    OSD_Result_t eResult = MenuMgr_AddTab(kTabID_PCAP, &Tab_Pcap);
+    if (eResult != kOSD_Result_Ok)
+    {
+        ESP_LOGE(TAG, "%s widget init failed %d", Tab_Pcap.Widget.Name, eResult);
         return;
     }
 }
