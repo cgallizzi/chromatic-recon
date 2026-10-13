@@ -16,13 +16,20 @@
 #include "netscan.h"
 
 #include <stdio.h>
+#include <math.h>
 
 #define ROWS    7
 #define ROW_Y0  52
 #define ROW_DY  9
 #define LEFT_X  8
 
-enum { W_SCAN, W_SNIFF, W_NMODES };
+/* radar geometry (inside the frame, below the strip) */
+#define RBLIPS  10
+#define RCX     80
+#define RCY     76
+#define RR      34
+
+enum { W_SCAN, W_SNIFF, W_RADAR, W_NMODES };
 
 LV_FONT_DECLARE(lv_font_montserrat_26);
 LV_FONT_DECLARE(chibit_mr);
@@ -31,15 +38,65 @@ LV_FONT_DECLARE(chibit_mr);
 
 typedef struct {
     lv_obj_t   *pBg, *pFrame, *pHdrBar, *pHdr, *pStatus, *pRows[ROWS];
+    lv_obj_t   *pRing[2], *pSweep, *pBlip[RBLIPS];
     lv_timer_t *pTimer;
     uint8_t     sel, top, anim, mode;
+    uint16_t    sweep_deg;
+    uint8_t     rescan_tick;
     bool        entered, active;
 } wui_t;
 static wui_t C;
+static lv_point_t s_sweep_pts[2];
 
 static void set_row(uint8_t i, const char *t)
 {
     if (i < ROWS && C.pRows[i]) lv_label_set_text(C.pRows[i], t);
+}
+
+static void set_hidden(lv_obj_t *o, bool h)
+{
+    if (!o) return;
+    if (h) lv_obj_add_flag(o, LV_OBJ_FLAG_HIDDEN);
+    else   lv_obj_clear_flag(o, LV_OBJ_FLAG_HIDDEN);
+}
+
+/* sweeping-line radar: blips placed by RSSI (strong = near centre),
+ * angle derived from the BSSID so each AP keeps a stable bearing. */
+static void update_radar(void)
+{
+    char buf[24];
+    uint8_t n = netscan_count();
+    snprintf(buf, sizeof buf, "RADAR %u", (unsigned)n);
+    if (C.pStatus) lv_label_set_text(C.pStatus, buf);
+
+    C.sweep_deg = (uint16_t)((C.sweep_deg + 24) % 360);
+    float a = C.sweep_deg * 3.14159265f / 180.0f;
+    s_sweep_pts[0].x = RCX;               s_sweep_pts[0].y = RCY;
+    s_sweep_pts[1].x = (lv_coord_t)(RCX + RR * cosf(a));
+    s_sweep_pts[1].y = (lv_coord_t)(RCY + RR * sinf(a));
+    if (C.pSweep) lv_line_set_points(C.pSweep, s_sweep_pts, 2);
+
+    for (uint8_t i = 0; i < RBLIPS; i++) {
+        if (!C.pBlip[i]) continue;
+        if (i < n) {
+            const netscan_ap_t *ap = netscan_get(i);
+            if (ap) {
+                float ang = (((ap->bssid[4] << 8) | ap->bssid[5]) % 360) * 3.14159265f / 180.0f;
+                int8_t r = ap->rssi;
+                float rr;
+                if (r >= -40)      rr = 0;
+                else if (r <= -90) rr = RR;
+                else               rr = (float)(-40 - r) / 50.0f * RR;
+                lv_obj_set_pos(C.pBlip[i], (lv_coord_t)(RCX + rr * cosf(ang)) - 1,
+                                           (lv_coord_t)(RCY + rr * sinf(ang)) - 1);
+                set_hidden(C.pBlip[i], false);
+            }
+        } else {
+            set_hidden(C.pBlip[i], true);
+        }
+    }
+
+    if (!netscan_is_busy() && ++C.rescan_tick >= 5) { C.rescan_tick = 0; netscan_begin(); }
 }
 
 static void bars_str(char *d, int8_t r)
@@ -58,10 +115,18 @@ static void refresh(void)
 {
     char buf[48];
 
+    bool radar = (C.active && C.mode == W_RADAR);
+    set_hidden(C.pRing[0], !radar);
+    set_hidden(C.pRing[1], !radar);
+    set_hidden(C.pSweep, !radar);
+    if (!radar) for (uint8_t i = 0; i < RBLIPS; i++) set_hidden(C.pBlip[i], true);
+    for (uint8_t i = 0; i < ROWS; i++) set_hidden(C.pRows[i], radar);
+
     if (!C.active) {
-        if (C.pStatus) lv_label_set_text(C.pStatus, (C.mode == W_SNIFF) ? "SNIFF" : "SCAN");
+        const char *mn = (C.mode == W_SNIFF) ? "SNIFF" : (C.mode == W_RADAR) ? "RADAR" : "SCAN";
+        if (C.pStatus) lv_label_set_text(C.pStatus, mn);
         set_row(0, "A: start");
-        set_row(1, "B: scan / sniff");
+        set_row(1, "B: mode");
         for (uint8_t i = 2; i < ROWS; i++) set_row(i, "");
         return;
     }
@@ -79,6 +144,8 @@ static void refresh(void)
         set_row(6, "B: switch");
         return;
     }
+
+    if (C.mode == W_RADAR) { update_radar(); return; }
 
     /* SCAN */
     if (netscan_is_busy()) {
@@ -196,6 +263,42 @@ OSD_Result_t WifiTools_Draw(void *arg)
             lv_label_set_text_static(C.pRows[i], "");
         }
     }
+    for (uint8_t k = 0; k < 2; k++) {
+        if (!C.pRing[k]) {
+            int rr = (k == 0) ? 17 : RR;
+            C.pRing[k] = lv_obj_create(scr);
+            lv_obj_remove_style_all(C.pRing[k]);
+            lv_obj_set_size(C.pRing[k], rr * 2, rr * 2);
+            lv_obj_set_pos(C.pRing[k], RCX - rr, RCY - rr);
+            lv_obj_set_style_radius(C.pRing[k], rr, 0);
+            lv_obj_set_style_bg_opa(C.pRing[k], LV_OPA_0, 0);
+            lv_obj_set_style_border_color(C.pRing[k], ACCENT, 0);
+            lv_obj_set_style_border_width(C.pRing[k], 1, 0);
+            lv_obj_clear_flag(C.pRing[k], LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(C.pRing[k], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    if (!C.pSweep) {
+        C.pSweep = lv_line_create(scr);
+        lv_obj_set_style_line_color(C.pSweep, ACCENT, 0);
+        lv_obj_set_style_line_width(C.pSweep, 1, 0);
+        s_sweep_pts[0].x = RCX; s_sweep_pts[0].y = RCY;
+        s_sweep_pts[1].x = RCX + RR; s_sweep_pts[1].y = RCY;
+        lv_line_set_points(C.pSweep, s_sweep_pts, 2);
+        lv_obj_add_flag(C.pSweep, LV_OBJ_FLAG_HIDDEN);
+    }
+    for (uint8_t i = 0; i < RBLIPS; i++) {
+        if (!C.pBlip[i]) {
+            C.pBlip[i] = lv_obj_create(scr);
+            lv_obj_remove_style_all(C.pBlip[i]);
+            lv_obj_set_size(C.pBlip[i], 3, 3);
+            lv_obj_set_style_radius(C.pBlip[i], 2, 0);
+            lv_obj_set_style_bg_color(C.pBlip[i], lv_color_make(0xFF, 0xFF, 0xFF), 0);
+            lv_obj_set_style_bg_opa(C.pBlip[i], LV_OPA_COVER, 0);
+            lv_obj_clear_flag(C.pBlip[i], LV_OBJ_FLAG_SCROLLABLE);
+            lv_obj_add_flag(C.pBlip[i], LV_OBJ_FLAG_HIDDEN);
+        }
+    }
     if (!C.pTimer) C.pTimer = lv_timer_create(timer_cb, 400, NULL);
 
     refresh();
@@ -243,12 +346,16 @@ OSD_Result_t WifiTools_OnTransition(void *arg)
 {
     (void)arg;
     if (C.pTimer) { lv_timer_del(C.pTimer); C.pTimer = NULL; }
-    lv_obj_t **o[] = { &C.pBg, &C.pFrame, &C.pHdrBar, &C.pHdr, &C.pStatus };
+    lv_obj_t **o[] = { &C.pBg, &C.pFrame, &C.pHdrBar, &C.pHdr, &C.pStatus,
+                       &C.pRing[0], &C.pRing[1], &C.pSweep };
     for (size_t i = 0; i < sizeof o / sizeof o[0]; i++) {
         if (*o[i]) { lv_obj_del(*o[i]); *o[i] = NULL; }
     }
     for (uint8_t i = 0; i < ROWS; i++) {
         if (C.pRows[i]) { lv_obj_del(C.pRows[i]); C.pRows[i] = NULL; }
+    }
+    for (uint8_t i = 0; i < RBLIPS; i++) {
+        if (C.pBlip[i]) { lv_obj_del(C.pBlip[i]); C.pBlip[i] = NULL; }
     }
     stop_active();
     C.entered = false;
