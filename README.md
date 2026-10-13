@@ -90,7 +90,39 @@ Nearby BLE devices with address + RSSI.
 
 ---
 
-## Build
+## Flash the prebuilt release (easiest — no toolchain)
+
+Don't want to install the toolchain? Grab the ready‑to‑flash image from the
+[**latest release**](https://github.com/cgallizzi/chromatic-recon/releases/latest).
+You only need Python + esptool, with the console on its USB serial port
+(`COM10` on Windows, `/dev/ttyACM0` on Linux) and powered **on**.
+
+```bash
+pip install esptool
+```
+
+**Step 0 — back up YOUR stock firmware first (your way back!):**
+```bash
+esptool.py -p <PORT> -b 460800 read_flash 0x0 0x400000 chromatic_stock_4MB.bin
+```
+Keep `chromatic_stock_4MB.bin` safe — this is your guaranteed path back to original.
+
+**Step 1 — flash Chromatic Recon:**
+```bash
+esptool.py -p <PORT> -b 115200 write_flash 0x0 chromatic-recon-v1.0.0-esp32.bin
+```
+
+**Restore to stock anytime:**
+```bash
+esptool.py -p <PORT> write_flash 0x0 chromatic_stock_4MB.bin
+```
+No backup? You still have a way back: ModRetro's own **Update Tool** can restore the
+console, or build stock from [ModRetro's repo](https://github.com/ModRetro/oss-chromatic-console-mcu)
+and flash it. The FPGA / game core is never modified by this project.
+
+---
+
+## Build (from source)
 
 Requires **Espressif ESP‑IDF v5.3** (see `UPSTREAM.md` for ModRetro's toolchain
 notes). Target chip is the classic **esp32**.
