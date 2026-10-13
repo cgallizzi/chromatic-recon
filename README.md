@@ -3,12 +3,16 @@
 Turn the **ModRetro Chromatic** into a retro-styled Wi‑Fi / Bluetooth **recon
 handheld** — while it still plays Game Boy cartridges exactly as before.
 
+<p align="center">
+  <img src="docs/img/hero.webp" width="420" alt="Chromatic Recon running the WiFi radar on a ModRetro Chromatic">
+</p>
+
 This is a custom firmware for the Chromatic's onboard **ESP32‑MINI‑1** that adds
 three new tabs to the console's menu:
 
 | Tab | Modes | What it does |
 |-----|-------|--------------|
-| **WiFi** | Scan / Sniff | Lists nearby access points (SSID, signal, security); passive monitor‑mode frame counters (mgmt/data/ctrl), channel‑hopping |
+| **WiFi** | Scan / Sniff / Radar | Lists nearby access points (SSID, signal, security); passive monitor‑mode frame counters (mgmt/data/ctrl), channel‑hopping; a sweeping radar that plots APs by signal strength |
 | **BT** | Scan / Sniff | Lists nearby BLE devices (address, RSSI, name); advertisement‑PDU counters |
 | **PCAP** | Capture | Streams a live `.pcap` out the USB serial for **Wireshark** |
 
@@ -34,6 +38,35 @@ networks and devices you own or have explicit permission to test.**
 
 This project is an **unofficial community project** and is **not affiliated with,
 endorsed by, or supported by ModRetro or Nintendo.**
+
+---
+
+## On the Chromatic
+
+All of this runs on real hardware. (The Pokémon splash peeking under some of the
+overlays is a cartridge running — the tools don't interrupt games.)
+
+### WiFi — Scan · Sniff · Radar
+
+| Scan | Sniff | Radar |
+|:----:|:-----:|:-----:|
+| ![WiFi scan](docs/img/wifi-scan.webp) | ![WiFi sniff](docs/img/wifi-sniff.webp) | ![WiFi radar](docs/img/wifi-radar.webp) |
+| Access-point list with signal bars + security | Monitor-mode frame counters (mgmt / data / ctrl) | APs plotted by signal strength, with a sweeping line |
+
+### BT — BLE scan
+
+<p align="center">
+  <img src="docs/img/bt.webp" width="300" alt="BT tab listing nearby BLE devices">
+</p>
+
+Nearby BLE devices with address + RSSI.
+
+### PCAP — live Wireshark capture
+
+| On the Chromatic | …opened in Wireshark |
+|:----------------:|:--------------------:|
+| ![PCAP tab](docs/img/pcap.webp) | ![captured pcap in Wireshark](docs/img/wireshark.png) |
+| Streams a `.pcap` out the USB serial | The captured file in Wireshark — real 802.11 probe requests |
 
 ---
 
